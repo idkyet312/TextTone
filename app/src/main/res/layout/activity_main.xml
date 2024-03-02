@@ -1,18 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <TextView
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <ProgressBar
+            android:id="@+id/progressBar"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="20dip"
+            android:layout_marginBottom="704dp"
+            android:indeterminateBehavior="repeat"
+            android:max="20"
+            android:progress="0"
+            app:layout_constraintBottom_toBottomOf="parent"
+            tools:layout_editor_absoluteX="-16dp" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <EditText
+        android:id="@+id/outputText"
+        android:layout_width="match_parent"
+        android:layout_height="600dp"
+        android:layout_above="@id/startRecordingButton"
+        android:layout_marginBottom="35dp"
+        android:layout_weight="1"
+        android:ems="10"
+        android:gravity="top"
+        android:hint="Output will be shown here"
+        android:inputType="textMultiLine" />
+
+    <Button
+        android:id="@+id/startRecordingButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Hello World!"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        android:text="Start Listening"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentStart="true"/>
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+    <Button
+        android:id="@+id/stopRecordingButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Stop Listening"
+        android:layout_below="@+id/startRecordingButton"
+        android:layout_centerHorizontal="true"/>
+
+    <Button
+        android:id="@+id/addFileButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Upload File"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentEnd="true"/>
+
+</RelativeLayout>
