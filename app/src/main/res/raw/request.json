@@ -1,0 +1,10 @@
+{
+  "config": {
+    "languageCode": "en-US",
+    "encoding": "OGG_OPUS",
+    "sampleRateHertz": 48000
+  },
+  "audio": {
+    "content": "placeholder"
+  }
+}

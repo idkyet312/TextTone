@@ -12,23 +12,28 @@ import android.util.Log;
 import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.TextView;
-import androidx.annotation.NonNull;
+
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import com.google.cloud.speech.v1.RecognitionAudio;
-import com.google.cloud.speech.v1.RecognitionConfig;
-import com.google.cloud.speech.v1.RecognitionConfig.AudioEncoding;
-import com.google.cloud.speech.v1.RecognizeResponse;
-import com.google.cloud.speech.v1.SpeechClient;
-import com.google.cloud.speech.v1.SpeechRecognitionAlternative;
-import com.google.cloud.speech.v1.SpeechRecognitionResult;
-import com.google.protobuf.ByteString;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+
+import android.util.Base64;
 
 public class MainActivity extends AppCompatActivity implements RecognitionListener {
 
@@ -39,6 +44,12 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
     private Intent recognizerIntent;
     private TextView outputText;
     private ProgressBar volume;
+
+
+
+    public byte[] data;
+
+    public String json;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -77,38 +88,106 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == PICK_AUDIO_FILE_REQUEST_CODE && resultCode == RESULT_OK && data != null) {
             Uri audioFileUri = data.getData();
-            outputText.setText("Uploading...");
+            outputText.setText(data.getDataString());
             transcribeAudio(audioFileUri);
+            //outputText.setText();
         }
     }
 
-    private void transcribeAudio(Uri audioFileUri) {
-        new Thread(() -> {
-            try (SpeechClient speechClient = SpeechClient.create()) {
-                byte[] data = readFileContent(audioFileUri);
-                if (data == null) {
-                    Log.e("Transcription Error", "Could not read file content");
-                    return;
-                }
-                RecognitionConfig config = RecognitionConfig.newBuilder()
-                        .setEncoding(AudioEncoding.LINEAR16)
-                        .setSampleRateHertz(16000)
-                        .setLanguageCode("en-US")
-                        .build();
-                RecognitionAudio audio = RecognitionAudio.newBuilder()
-                        .setContent(ByteString.copyFrom(data))
-                        .build();
 
-                RecognizeResponse response = speechClient.recognize(config, audio);
-                for (SpeechRecognitionResult result : response.getResultsList()) {
-                    SpeechRecognitionAlternative alternative = result.getAlternativesList().get(0);
-                    runOnUiThread(() -> outputText.setText(alternative.getTranscript()));
-                }
-            } catch (Exception e) {
-                Log.e("Transcription Error", "Error transcribing file", e);
+
+    private void transcribeAudio(Uri audioFileUri) {
+        OkHttpClient client = new OkHttpClient();
+        String url = "https://speech.googleapis.com/v1/speech:recognize?key=AIzaSyA1KtZTx9JEGsVWyiRZ7SkjaUXNUzlbJNo";
+        String jsonTemplate;
+
+        // Step 1: Load the JSON template
+        try {
+            InputStream inputStream = getResources().openRawResource(R.raw.request);
+            byte[] buffer = new byte[inputStream.available()];
+            inputStream.read(buffer);
+            inputStream.close();
+            jsonTemplate = new String(buffer, "UTF-8");
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load JSON template", e);
+        }
+
+        // Step 2: Encode the audio file content
+        String encodedAudio;
+        try {
+            byte[] audioData = readFileContent(audioFileUri);
+            encodedAudio = Base64.encodeToString(audioData, Base64.NO_WRAP);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read and encode audio file", e);
+        }
+
+        // Step 3: Insert the encoded audio into the JSON template
+        String jsonRequestBody = jsonTemplate.replace("\"placeholder\"", "\"" + encodedAudio + "\"");
+
+        // Step 4: Send the request
+        MediaType mediaType = MediaType.parse("application/json; charset=utf-8");
+        RequestBody body = RequestBody.create(jsonRequestBody, mediaType);
+        Request request = new Request.Builder()
+                .url(url)
+                .post(body)
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                e.printStackTrace();
             }
-        }).start();
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                if (response.isSuccessful()) {
+                    String responseStr = response.body().string();
+                    // Parse the response string here
+                    Log.d("Response", responseStr);
+                    runOnUiThread(() -> {
+                        // Parse and display the response string here, ensure this is done on the UI thread
+                        outputText.setText(responseStr);
+                    });
+                }
+            }
+        });
+
+
+        String s = """
+                            outputText.setText("transcribin");
+                            new Thread(() -> {
+                                try (SpeechClient speechClient = SpeechClient.create()) {
+                                    byte[] data = readFileContent(audioFileUri);
+                                    if (data == null) {
+                                        Log.e("Transcription Error", "Could not read file content");
+                                        return;
+                                    }
+                                    runOnUiThread(() -> outputText.setText("outputting0"));
+                                    RecognitionConfig config = RecognitionConfig.newBuilder()
+                                            .setEncoding(AudioEncoding.LINEAR16)
+                                            .setSampleRateHertz(16000)
+                                            .setLanguageCode("en-US")
+                                            .build();
+                                    //RecognitionAudio audio = RecognitionAudio.newBuilder()
+                                            //.setContent(ByteString.copyFrom(data))
+                                            //.build();
+                                    runOnUiThread(() -> outputText.setText("outputting1"));
+                                    RecognitionAudio audio = RecognitionAudio.newBuilder().setUri(gcsUri).build();
+
+                                    runOnUiThread(() -> outputText.setText("outputting2"));
+
+                                    RecognizeResponse response = speechClient.recognize(config, audio);
+                                    for (SpeechRecognitionResult result : response.getResultsList()) {
+                                        SpeechRecognitionAlternative alternative = result.getAlternativesList().get(0);
+                                        runOnUiThread(() -> outputText.setText(alternative.getTranscript()));;
+                }
+                        } catch (Exception e) {
+                            runOnUiThread(() -> outputText.setText("error"));
+                            Log.e("Transcription Error", "Error transcribing file", e);
+                        }
+                    }).start();""";
     }
+
 
     private byte[] readFileContent(Uri uri) throws IOException {
         try (InputStream inputStream = getContentResolver().openInputStream(uri);
@@ -124,6 +203,8 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
             throw e;
         }
     }
+
+
 
     private void startListening() {
         speechRecognizer.startListening(recognizerIntent);

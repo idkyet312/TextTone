@@ -22,7 +22,11 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-
+    packagingOptions {
+        exclude("META-INF/INDEX.LIST");
+        exclude("META-INF/DEPENDENCIES");
+        // Add more exclude lines here if needed
+    }
 
     buildTypes {
         release {
