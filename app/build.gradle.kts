@@ -40,6 +40,10 @@ android {
 
 
 dependencies {
+    implementation(platform("com.google.firebase:firebase-bom:32.7.3"))
+
+    implementation("com.google.firebase:firebase-analytics")
+
     // Google Cloud Speech-to-Text library
     implementation("com.google.cloud:google-cloud-speech:4.28.0")
 
