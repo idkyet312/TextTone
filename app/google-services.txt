@@ -1,0 +1,4 @@
+app/
+    google-services.json
+    src/dogfood/google-services.json
+    src/release/google-services.json
