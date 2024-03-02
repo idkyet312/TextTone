@@ -35,6 +35,9 @@ import okhttp3.Response;
 
 import android.util.Base64;
 
+import java.util.concurrent.TimeUnit;
+
+
 public class MainActivity extends AppCompatActivity implements RecognitionListener {
 
     private static final int PERMISSION_REQUEST_CODE = 1;
@@ -97,9 +100,14 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
 
 
     private void transcribeAudio(Uri audioFileUri) {
-        OkHttpClient client = new OkHttpClient();
-        String url = "https://speech.googleapis.com/v1/speech:recognize?key=AIzaSyA1KtZTx9JEGsVWyiRZ7SkjaUXNUzlbJNo";
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(600, TimeUnit.SECONDS) // Increase connection timeout
+                .readTimeout(600, TimeUnit.SECONDS) // Increase read timeout
+                .writeTimeout(600, TimeUnit.SECONDS) // Increase write timeout
+                .build();
+        String url = "https://speech.googleapis.com/v1/speech:recognize?key=API_KEY";x
         String jsonTemplate;
+
 
         // Step 1: Load the JSON template
         try {
@@ -130,6 +138,7 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
         Request request = new Request.Builder()
                 .url(url)
                 .post(body)
+
                 .build();
 
         client.newCall(request).enqueue(new Callback() {
