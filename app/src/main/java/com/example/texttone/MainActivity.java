@@ -8,6 +8,10 @@ import android.os.Bundle;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.AbsoluteSizeSpan;
+import android.text.style.RelativeSizeSpan;
 import android.util.Log;
 import android.widget.Button;
 import android.widget.ProgressBar;
@@ -33,12 +37,33 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 
+import android.media.AudioFormat;
+import android.media.AudioRecord;
+import android.media.MediaRecorder;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+
+
 import android.util.Base64;
 
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 
 public class MainActivity extends AppCompatActivity implements RecognitionListener {
+
+    private static final int SAMPLE_RATE = 44100; // Sample rate in Hz
+    private static final int CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO;
+    private static final int AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT;
+    private static final int BUFFER_SIZE = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT);
+
+    private AudioRecord audioRecord;
+    private boolean isCapturing = false;
 
     private static final int PERMISSION_REQUEST_CODE = 1;
     private static final int PICK_AUDIO_FILE_REQUEST_CODE = 2;
@@ -49,10 +74,16 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
     private ProgressBar volume;
 
 
-
+    public int count = 0;
     public byte[] data;
 
     public String json;
+
+    public String oldlastword;
+
+    public Float db_holder;
+
+    List<Float> Dblist = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,14 +101,18 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
         Button uploadFileButton = findViewById(R.id.addFileButton);
         volume = findViewById(R.id.progressBar);
 
+
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
         recognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        recognizerIntent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
         speechRecognizer.setRecognitionListener(this);
 
         startListeningButton.setOnClickListener(v -> startListening());
         stopListeningButton.setOnClickListener(v -> stopListening());
         uploadFileButton.setOnClickListener(v -> selectFileForUpload());
+
+        Dblist.add(1.2F);
     }
 
     private void selectFileForUpload() {
@@ -105,7 +140,7 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
                 .readTimeout(600, TimeUnit.SECONDS) // Increase read timeout
                 .writeTimeout(600, TimeUnit.SECONDS) // Increase write timeout
                 .build();
-        String url = "https://speech.googleapis.com/v1/speech:recognize?key=API_KEY";x
+        String url = "https://speech.googleapis.com/v1/speech:recognize?key=AIzaSyCzhMmNO7zJBCWfqLRMjAf4EHwwj-c7h-w";
         String jsonTemplate;
 
 
@@ -153,6 +188,7 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
                     String responseStr = response.body().string();
                     // Parse the response string here
                     Log.d("Response", responseStr);
+
                     runOnUiThread(() -> {
                         // Parse and display the response string here, ensure this is done on the UI thread
                         outputText.setText(responseStr);
@@ -161,40 +197,6 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
             }
         });
 
-
-        String s = """
-                            outputText.setText("transcribin");
-                            new Thread(() -> {
-                                try (SpeechClient speechClient = SpeechClient.create()) {
-                                    byte[] data = readFileContent(audioFileUri);
-                                    if (data == null) {
-                                        Log.e("Transcription Error", "Could not read file content");
-                                        return;
-                                    }
-                                    runOnUiThread(() -> outputText.setText("outputting0"));
-                                    RecognitionConfig config = RecognitionConfig.newBuilder()
-                                            .setEncoding(AudioEncoding.LINEAR16)
-                                            .setSampleRateHertz(16000)
-                                            .setLanguageCode("en-US")
-                                            .build();
-                                    //RecognitionAudio audio = RecognitionAudio.newBuilder()
-                                            //.setContent(ByteString.copyFrom(data))
-                                            //.build();
-                                    runOnUiThread(() -> outputText.setText("outputting1"));
-                                    RecognitionAudio audio = RecognitionAudio.newBuilder().setUri(gcsUri).build();
-
-                                    runOnUiThread(() -> outputText.setText("outputting2"));
-
-                                    RecognizeResponse response = speechClient.recognize(config, audio);
-                                    for (SpeechRecognitionResult result : response.getResultsList()) {
-                                        SpeechRecognitionAlternative alternative = result.getAlternativesList().get(0);
-                                        runOnUiThread(() -> outputText.setText(alternative.getTranscript()));;
-                }
-                        } catch (Exception e) {
-                            runOnUiThread(() -> outputText.setText("error"));
-                            Log.e("Transcription Error", "Error transcribing file", e);
-                        }
-                    }).start();""";
     }
 
 
@@ -231,6 +233,8 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
         }
     }
 
+
+
     // RecognitionListener methods
     @Override
     public void onReadyForSpeech(Bundle params) {}
@@ -238,26 +242,106 @@ public class MainActivity extends AppCompatActivity implements RecognitionListen
     public void onBeginningOfSpeech() {}
     @Override
     public void onRmsChanged(float rmsdB) {
-        volume.setProgress((int) (rmsdB * 2));
+
+        db_holder = rmsdB;
+        // Assuming rmsdB is a value that can be directly used after scaling
+        final int progress = scaleRmsdBToProgress(rmsdB);
+
+        // Assuming volumeProgressBar is a ProgressBar instance
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                volume.setProgress(progress);
+            }
+        });
     }
-    @Override
-    public void onBufferReceived(byte[] buffer) {}
+
+    private int scaleRmsdBToProgress(float rmsdB) {
+        // This is a simplified example. You'll need to adapt this based on your progress bar's max value
+        // and how you want to represent the volume level. This is just a linear scaling example.
+        int minDB = -50; // Example minimum dB value for silence or near silence
+        int maxDB = 50; // Example maximum dB value for the loudest sound
+
+        // Normalize and scale rmsdB value
+        float normalizedValue = (rmsdB - minDB) / (maxDB - minDB);
+        normalizedValue = Math.max(0, Math.min(normalizedValue, 1)); // Clamp between 0 and 1
+
+        int maxProgress = volume.getMax(); // Get the progress bar's maximum value
+        db_holder = normalizedValue * maxProgress;
+        return (int) (normalizedValue * maxProgress);
+    }
+        @Override
+        public void onBufferReceived(byte[] buffer){}
     @Override
     public void onEndOfSpeech() {}
     @Override
     public void onError(int error) {
         Log.e("SpeechRecognizer", "Error: " + error);
         outputText.setText("Error occurred: " + error);
+        startListening();
     }
     @Override
     public void onResults(Bundle results) {
+        //Collections.reverse(Dblist);
         ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
         if (matches != null && !matches.isEmpty()) {
-            outputText.setText(matches.get(0)); // Display the first match
+            String text = matches.get(0);
+
+// Create a SpannableString with the full text
+            SpannableString spannableString = new SpannableString(text);
+
+// Apply a RelativeSizeSpan for "example" word to increase the size by 1.5 times
+            String[] textword = text.split(" ");
+            int start = 0;
+            for (int i = 0; i < textword.length; i++) {
+                if (i != 0) {
+                    start = text.indexOf(" " + textword[i]);
+                    start = start + 1;
+                }
+                else {
+                    start = text.indexOf(textword[i]);
+                }
+                int end = start + textword[i].length();
+                //int reversei = Dblist.toArray().length - i;
+                spannableString.setSpan(new RelativeSizeSpan(Dblist.get(i)), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+
+            }
+
+            //for (Float item : Dblist) {
+            outputText.append(spannableString);
+
         }
     }
     @Override
-    public void onPartialResults(Bundle partialResults) {}
+    public void onPartialResults(Bundle partialResults) {
+        ArrayList<String> matches = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+        if (matches != null && !matches.isEmpty() && !Objects.equals(matches.get(0), "")) {
+            // Process the first match to work with the most likely words spoken so far
+            String[] words = matches.get(0).split("\\s+");
+
+
+            // Perform action on the last word detected for simplicity
+            String lastWord = words[words.length - 1];
+            if(!lastWord.equals(oldlastword)){
+                oldlastword = lastWord;
+                //if(volume.getProgress() < -2.0)
+                final int progress = scaleRmsdBToProgress(db_holder);
+                if((double) progress / 6 == 1.0)
+                {
+                    outputText.append("A");
+                    Dblist.add(3F);
+                }
+                else
+                {
+                    outputText.append("B");
+                    Dblist.add(db_holder / 6);
+                }
+                //outputText.append(lastWord + " ");
+            }// Do something with lastWord
+        }
+    }
+
+
     @Override
     public void onEvent(int eventType, Bundle params) {}
 }
