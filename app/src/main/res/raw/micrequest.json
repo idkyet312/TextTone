@@ -1,0 +1,12 @@
+{
+  "config": {
+    "languageCode": "en-US",
+    "encoding": "LINEAR16",
+    "sampleRateHertz": 41000,
+    "enableWordTimeOffsets": true,
+    "model": "telephony"
+  },
+  "audio": {
+    "content": "placeholder"
+  }
+}
